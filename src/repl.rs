@@ -7,13 +7,17 @@ use std::io::Write;
 use crate::environment::Environment;
 use crate::reader;
 use crate::value::{Evaluable, ToValue, Value};
+use std::convert::TryInto;
+use std::ops::Deref;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Repl {
-    environment: Rc<Environment>,
+    pub environment: Arc<Environment>,
 }
+
 impl Repl {
-    pub fn new(environment: Rc<Environment>) -> Repl {
+    pub fn new(environment: Arc<Environment>) -> Repl {
         Repl { environment }
     }
 
@@ -21,7 +25,11 @@ impl Repl {
     // to frame eval as "environment.eval(value)", and then likewise define a
     // 'repl.eval(value)', rather than 'value.eval(environment)'
     pub fn eval(&self, value: &Value) -> Value {
-        value.eval(Rc::clone(&self.environment))
+        value.eval(Rc::new(self.environment.deref().clone()))
+    }
+
+    pub fn evalValue(&self, value: Value) -> Value {
+        value.eval(Rc::new(self.environment.deref().clone()))
     }
 
     // Just wraps reader's read

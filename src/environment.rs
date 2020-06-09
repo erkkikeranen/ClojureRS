@@ -95,7 +95,14 @@ pub enum Environment {
     /// Introduced by Closures, and by let
     LocalEnvironment(Rc<Environment>, RefCell<HashMap<Symbol, Rc<Value>>>),
 }
+
+unsafe impl Send for Environment {}
+unsafe impl Sync for Environment {}
+
+use std::ops::Deref;
+use std::sync::Arc;
 use Environment::*;
+
 impl Environment {
     pub fn has_namespace(&self, symbol: &Symbol) -> bool {
         match self.get_main_environment() {
@@ -272,7 +279,7 @@ impl Environment {
             }
         }
     }
-    pub fn clojure_core_environment() -> Rc<Environment> {
+    pub fn clojure_core_environment() -> Arc<Environment> {
         // Register our macros / functions ahead of time
         let add_fn = rust_core::AddFn {};
         let subtract_fn = rust_core::SubtractFn {};
@@ -504,14 +511,16 @@ impl Environment {
         // Read in clojure.core
         //
         // @TODO its time for a RT (runtime), which environment seems to be becoming
-        let _ = Repl::new(Rc::clone(&environment)).try_eval_file("./src/clojure/core.clj");
+        let _ = Repl::new(Arc::new(environment.deref().to_owned()))
+            .try_eval_file("./src/clojure/core.clj");
         // TODO: should read into namespace if (ns ..) is given in source file
-        let _ = Repl::new(Rc::clone(&environment)).try_eval_file("./src/clojure/string.clj");
+        let _ = Repl::new(Arc::new(environment.deref().to_owned()))
+            .try_eval_file("./src/clojure/string.clj");
 
         // We can add this back once we have requires
         // environment.change_or_create_namespace(Symbol::intern("user"));
 
-        environment
+        Arc::new(environment.deref().to_owned())
     }
 }
 

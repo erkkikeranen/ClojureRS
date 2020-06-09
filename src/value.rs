@@ -65,6 +65,7 @@ pub enum Value {
     Nil,
     Pattern(regex::Regex),
 }
+
 use crate::value::Value::*;
 
 impl PartialEq for Value {
