@@ -1,3 +1,4 @@
+(ns clojure.core)
 (def *flush-on-newline* true)
 (def *print-readably* true)
 

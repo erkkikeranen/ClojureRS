@@ -5,13 +5,14 @@ use crate::value::{ToValue, Value};
 use std::rc::Rc;
 
 use crate::error_message;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct NsMacro {
-    enclosing_environment: Rc<Environment>,
+    enclosing_environment: Arc<Environment>,
 }
 impl NsMacro {
-    pub fn new(enclosing_environment: Rc<Environment>) -> NsMacro {
+    pub fn new(enclosing_environment: Arc<Environment>) -> NsMacro {
         NsMacro {
             enclosing_environment,
         }

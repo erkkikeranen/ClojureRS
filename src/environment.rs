@@ -99,6 +99,7 @@ pub enum Environment {
 unsafe impl Send for Environment {}
 unsafe impl Sync for Environment {}
 
+use std::borrow::Borrow;
 use std::ops::Deref;
 use std::sync::Arc;
 use Environment::*;
@@ -252,7 +253,7 @@ impl Environment {
             }
         }
     }
-    // @TODO refactor to use ^ 
+    // @TODO refactor to use ^
     // @TODO figure out convention for 'ns' vs 'namespace'
     /// Get closest value "around" us;  try our local environment, then
     /// try our main environment (unless its namespace qualified)
@@ -336,16 +337,16 @@ impl Environment {
         let fn_macro = Value::FnMacro {};
         let defmacro_macro = Value::DefmacroMacro {};
         let if_macro = Value::IfMacro {};
-        let environment = Rc::new(Environment::new_main_environment());
+        let environment = Arc::new(Environment::new_main_environment());
 
         let equals_fn = rust_core::EqualsFn {};
-        let eval_fn = rust_core::EvalFn::new(Rc::clone(&environment));
-        let ns_macro = rust_core::NsMacro::new(Rc::clone(&environment));
-        let load_file_fn = rust_core::LoadFileFn::new(Rc::clone(&environment));
-        let refer_fn = rust_core::ReferFn::new(Rc::clone(&environment));
-        let meta_fn = rust_core::MetaFn::new(Rc::clone(&environment));
-        let with_meta_fn = rust_core::WithMetaFn::new(Rc::clone(&environment));
-        let var_fn = rust_core::special_form::VarFn::new(Rc::clone(&environment));
+        let eval_fn = rust_core::EvalFn::new(Arc::clone(&environment));
+        let ns_macro = rust_core::NsMacro::new(Arc::clone(&environment));
+        let load_file_fn = rust_core::LoadFileFn::new(environment.clone());
+        let refer_fn = rust_core::ReferFn::new(Arc::clone(&environment));
+        let meta_fn = rust_core::MetaFn::new(Arc::clone(&environment));
+        let with_meta_fn = rust_core::WithMetaFn::new(Arc::clone(&environment));
+        let var_fn = rust_core::special_form::VarFn::new(Arc::clone(&environment));
         // @TODO after we merge this with all the other commits we have,
         //       just change all the `insert`s here to use insert_in_namespace
         //       I prefer explicity and the non-dependence-on-environmental-factors
@@ -470,7 +471,6 @@ impl Environment {
             split_fn.to_rc_value(),
         );
 
-
         environment.insert(Symbol::intern("quote"), quote_macro.to_rc_value());
         environment.insert(Symbol::intern("do-fn*"), do_fn.to_rc_value());
         environment.insert(Symbol::intern("do"), do_macro.to_rc_value());
@@ -511,16 +511,14 @@ impl Environment {
         // Read in clojure.core
         //
         // @TODO its time for a RT (runtime), which environment seems to be becoming
-        let _ = Repl::new(Arc::new(environment.deref().to_owned()))
-            .try_eval_file("./src/clojure/core.clj");
+        let _ = Repl::new(Arc::clone(&environment)).try_eval_file("./src/clojure/core.clj");
         // TODO: should read into namespace if (ns ..) is given in source file
-        let _ = Repl::new(Arc::new(environment.deref().to_owned()))
-            .try_eval_file("./src/clojure/string.clj");
+        let _ = Repl::new(Arc::clone(&environment)).try_eval_file("./src/clojure/string.clj");
 
         // We can add this back once we have requires
         // environment.change_or_create_namespace(Symbol::intern("user"));
 
-        Arc::new(environment.deref().to_owned())
+        Arc::clone(&environment)
     }
 }
 

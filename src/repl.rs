@@ -25,11 +25,11 @@ impl Repl {
     // to frame eval as "environment.eval(value)", and then likewise define a
     // 'repl.eval(value)', rather than 'value.eval(environment)'
     pub fn eval(&self, value: &Value) -> Value {
-        value.eval(Rc::new(self.environment.deref().clone()))
+        value.eval(Arc::from(self.environment.deref().clone()))
     }
 
     pub fn evalValue(&self, value: Value) -> Value {
-        value.eval(Rc::new(self.environment.deref().clone()))
+        value.eval(Arc::from(self.environment.deref().clone()))
     }
 
     // Just wraps reader's read

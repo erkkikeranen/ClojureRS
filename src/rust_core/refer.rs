@@ -2,7 +2,7 @@ use crate::environment::Environment;
 use crate::error_message;
 use crate::ifn::IFn;
 use crate::keyword::Keyword;
-use crate::persistent_vector::{ToPersistentVectorIter};
+use crate::persistent_vector::ToPersistentVectorIter;
 use crate::symbol::Symbol;
 use crate::type_tag::TypeTag;
 use crate::util::IsOdd;
@@ -11,13 +11,14 @@ use if_chain::if_chain;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ReferFn {
-    enclosing_environment: Rc<Environment>,
+    enclosing_environment: Arc<Environment>,
 }
 impl ReferFn {
-    pub fn new(enclosing_environment: Rc<Environment>) -> ReferFn {
+    pub fn new(enclosing_environment: Arc<Environment>) -> ReferFn {
         ReferFn {
             enclosing_environment,
         }

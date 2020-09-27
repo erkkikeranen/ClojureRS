@@ -8,8 +8,8 @@ use crate::persistent_list::{PersistentList, ToPersistentList, ToPersistentListI
 use crate::persistent_list_map::{PersistentListMap, ToPersistentListMapIter};
 use crate::persistent_vector::PersistentVector;
 use crate::symbol::Symbol;
-use crate::var::Var;
 use crate::type_tag::TypeTag;
+use crate::var::Var;
 use core::fmt::Display;
 
 extern crate rand;
@@ -67,6 +67,8 @@ pub enum Value {
 }
 
 use crate::value::Value::*;
+use std::ops::Deref;
+use std::sync::Arc;
 
 impl PartialEq for Value {
     // @TODO implement our generic IFns some other way? After all, again, this isn't Java
@@ -254,14 +256,14 @@ impl Value {
     /// Applies any valid function-like Value to a PersistentList, or returns None if our Value can't be applied
     fn apply_to_persistent_list(
         &self,
-        environment: &Rc<Environment>,
+        environment: &Arc<Environment>,
         args: &Rc<PersistentList>,
     ) -> Option<Rc<Value>> {
         match self {
             Value::IFn(ifn) => {
                 // Eval arguments
                 let evaled_arg_refs = PersistentList::iter(args)
-                    .map(|rc_arg| rc_arg.eval_to_rc(Rc::clone(environment)))
+                    .map(|rc_arg| rc_arg.eval_to_rc(Arc::clone(environment)))
                     .collect::<Vec<Rc<Value>>>();
 
                 // Invoke fn on arguments
@@ -276,12 +278,12 @@ impl Value {
                 }
                 // This should only be one value
                 let evaled_arg_values = PersistentList::iter(args)
-                    .map(|rc_arg| rc_arg.eval_to_rc(Rc::clone(environment)))
+                    .map(|rc_arg| rc_arg.eval_to_rc(Arc::clone(environment)))
                     .collect::<Vec<Rc<Value>>>();
 
                 let evaled_arg = evaled_arg_values.get(0).unwrap();
 
-                Some(evaled_arg.eval_to_rc(Rc::clone(environment)))
+                Some(evaled_arg.eval_to_rc(Arc::clone(environment)))
             }
             //
             // Unless I'm mistaken, this is incorrect; instead of having a phase where
@@ -296,7 +298,7 @@ impl Value {
 
                 let macroexpansion = Rc::new(ifn.invoke(arg_refs));
 
-                Some(macroexpansion.eval_to_rc(Rc::clone(environment)))
+                Some(macroexpansion.eval_to_rc(Arc::clone(environment)))
             }
             //
             // Special case macros
@@ -336,7 +338,7 @@ impl Value {
                     .get(if arg_rc_values.len() == 2 { 1 } else { 2 })
                     .or(Some(&Rc::new(Value::Nil)))
                     .unwrap()
-                    .eval_to_rc(Rc::clone(&environment));
+                    .eval_to_rc(Arc::clone(environment));
 
                 let doc_string = if arg_rc_values.len() == 3 {
                     match arg_rc_values.get(1).unwrap().to_value() {
@@ -349,7 +351,7 @@ impl Value {
 
                 match &**defname {
                     Value::Symbol(sym) => {
-                        println!("Def: meta on sym is {}",sym.meta());
+                        println!("Def: meta on sym is {}", sym.meta());
                         // TODO: environment.insert with meta?
                         let s = if doc_string != Value::Nil {
                             let ss = Symbol::intern_with_ns(
@@ -399,7 +401,7 @@ impl Value {
                 macro_invokable_body_vec.extend_from_slice(macro_body_exprs);
                 let macro_invokable_body = macro_invokable_body_vec
                     .into_list()
-                    .eval(Rc::clone(&environment));
+                    .eval(Arc::clone(environment));
                 let macro_value = match &macro_invokable_body {
 		    Value::IFn(ifn) => Rc::new(Value::Macro(Rc::clone(&ifn))),
 		    _ => Rc::new(Value::Condition(std::string::String::from("Compiler Error: your macro_value somehow compiled into something else entirely.  I don't even know how that happened,  this behavior is hardcoded, that's impressive")))
@@ -411,7 +413,7 @@ impl Value {
                         macro_value,
                     ]
                     .into_list()
-                    .eval_to_rc(Rc::clone(&environment)),
+                    .eval_to_rc(Arc::clone(environment)),
                 )
             }
             //
@@ -438,8 +440,9 @@ impl Value {
                 match &**fn_args {
                     Value::PersistentVector(PersistentVector { vals }) => {
                         let mut arg_syms_vec = vec![];
-                        let enclosing_environment =
-                            Rc::new(Environment::new_local_environment(Rc::clone(&environment)));
+                        let enclosing_environment = Arc::new(Environment::new_local_environment(
+                            Rc::from(environment.deref().to_owned()),
+                        ));
                         for val in vals.iter() {
                             if let Value::Symbol(sym) = &**val {
                                 arg_syms_vec.push(sym.clone());
@@ -494,8 +497,9 @@ impl Value {
                 match &**local_bindings {
                     Value::PersistentVector(vector) => {
                         //let mut local_environment_map : HashMap<Symbol,Rc<Value>> = HashMap::new();
-                        let local_environment =
-                            Rc::new(Environment::new_local_environment(Rc::clone(environment)));
+                        let local_environment = Rc::new(Environment::new_local_environment(
+                            Rc::from(environment.deref().to_owned()),
+                        ));
                         // let chunk_test2 =
                         for pair in vector.vals.chunks(2) {
                             if let Some(rc_sym) = (&*pair).get(0)
@@ -504,7 +508,7 @@ impl Value {
                                 let val = (&*pair)
                                     .get(1)
                                     .unwrap()
-                                    .eval_to_rc(Rc::clone(&local_environment));
+                                    .eval_to_rc(Arc::from(local_environment.deref().to_owned()));
                                 if let Value::Symbol(sym) = &(**rc_sym) {
                                     local_environment.insert(sym.clone(), val);
                                     //println!("Sym found: {:?}: {:?}",sym,val)
@@ -515,7 +519,7 @@ impl Value {
                         }
                         let body = arg_rc_values.get(1);
                         if let Some(body_) = body {
-                            Some(body_.eval_to_rc(local_environment))
+                            Some(body_.eval_to_rc(Arc::from(local_environment.deref().to_owned())))
                         } else {
                             Some(Rc::new(Value::Nil))
                         }
@@ -550,16 +554,16 @@ impl Value {
                     ))));
                 }
                 let arg_refs = PersistentList::iter(args).collect::<Vec<Rc<Value>>>();
-                let condition = arg_refs.get(0).unwrap().eval(Rc::clone(environment));
+                let condition = arg_refs.get(0).unwrap().eval(Arc::clone(environment));
 
                 if condition.is_truthy() {
-                    Some(arg_refs.get(1).unwrap().eval_to_rc(Rc::clone(environment)))
+                    Some(arg_refs.get(1).unwrap().eval_to_rc(Arc::clone(environment)))
                 } else {
                     Some(
                         arg_refs
                             .get(2)
                             .unwrap_or(&Rc::new(Value::Nil))
-                            .eval_to_rc(Rc::clone(environment)),
+                            .eval_to_rc(Arc::clone(environment)),
                     )
                 }
             }
@@ -699,16 +703,16 @@ impl<T: Display, V: ToValue> ToValue for Result<V, T> {
 pub trait Evaluable {
     /// Evaluates a value and returns a Rc pointer to the evaluated ClojureRS Value
     /// The program primarily
-    fn eval_to_rc(&self, environment: Rc<Environment>) -> Rc<Value>;
+    fn eval_to_rc(&self, environment: Arc<Environment>) -> Rc<Value>;
     /// Evaluates a value and returns a new ClojureRS Value altogether, by cloning what
     /// eval_to_rc points to
-    fn eval(&self, environment: Rc<Environment>) -> Value {
+    fn eval(&self, environment: Arc<Environment>) -> Value {
         self.eval_to_rc(environment).to_value()
     }
 }
 
 impl Evaluable for Rc<Value> {
-    fn eval_to_rc(&self, environment: Rc<Environment>) -> Rc<Value> {
+    fn eval_to_rc(&self, environment: Arc<Environment>) -> Rc<Value> {
         match &**self {
             // Evaluating a symbol means grabbing the value its been bound to in our environment
             Value::Symbol(symbol) => environment.get(symbol),
@@ -719,7 +723,7 @@ impl Evaluable for Rc<Value> {
                 let evaled_vals = pvector
                     .vals
                     .iter()
-                    .map(|rc_val| rc_val.eval_to_rc(Rc::clone(&environment)))
+                    .map(|rc_val| rc_val.eval_to_rc(Arc::clone(&environment)))
                     .collect::<PersistentVector>();
                 Rc::new(Value::PersistentVector(evaled_vals))
             }
@@ -729,8 +733,8 @@ impl Evaluable for Rc<Value> {
                 let evaled_vals = plistmap
                     .iter()
                     .map(|map_entry| MapEntry {
-                        key: map_entry.key.eval_to_rc(Rc::clone(&environment)),
-                        val: map_entry.val.eval_to_rc(Rc::clone(&environment)),
+                        key: map_entry.key.eval_to_rc(Arc::clone(&environment)),
+                        val: map_entry.val.eval_to_rc(Arc::clone(&environment)),
                     })
                     .collect::<PersistentListMap>();
                 Rc::new(Value::PersistentListMap(evaled_vals))
@@ -742,10 +746,10 @@ impl Evaluable for Rc<Value> {
                     // and can be invoked on our arguments
                     // (ie, a fn, a macro, a keyword ..)
                     // @TODO remove clone if possible
-                    let ifn = Rc::clone(head).eval_to_rc(Rc::clone(&environment));
+                    let ifn = Rc::clone(head).eval_to_rc(Arc::clone(&environment));
 
                     let try_apply_ifn =
-                        ifn.apply_to_persistent_list(&Rc::clone(&environment), tail);
+                        ifn.apply_to_persistent_list(&Arc::clone(&environment), tail);
 
                     // Right now we're using the normal error message, however maybe later we will try
                     //
@@ -756,8 +760,9 @@ impl Evaluable for Rc<Value> {
                     // you pretty much already knowing when this error message is called
                     try_apply_ifn.unwrap_or_else(|| {
                         Rc::new(Value::Condition(format!(
-                            "Execution Error: {} cannot be cast to clojure.lang.IFn",
-                            ifn.type_tag()
+                            "Execution Error: {} cannot be cast to clojure.lang.IFn. {}",
+                            ifn.type_tag(),
+                            ifn.to_string()
                         )))
                     })
                 }
@@ -770,12 +775,12 @@ impl Evaluable for Rc<Value> {
     }
 }
 impl Evaluable for PersistentList {
-    fn eval_to_rc(&self, environment: Rc<Environment>) -> Rc<Value> {
+    fn eval_to_rc(&self, environment: Arc<Environment>) -> Rc<Value> {
         self.to_rc_value().eval_to_rc(environment)
     }
 }
 impl Evaluable for Value {
-    fn eval_to_rc(&self, environment: Rc<Environment>) -> Rc<Value> {
+    fn eval_to_rc(&self, environment: Arc<Environment>) -> Rc<Value> {
         self.to_rc_value().eval_to_rc(environment)
     }
 }

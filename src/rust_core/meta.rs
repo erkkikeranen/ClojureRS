@@ -1,12 +1,13 @@
 use crate::environment::Environment;
 use crate::error_message;
- use crate::ifn::IFn;
-use crate::type_tag::TypeTag;
+use crate::ifn::IFn;
 use crate::protocol::ProtocolCastable;
 use crate::protocols;
 use crate::traits::IMeta;
+use crate::type_tag::TypeTag;
 use crate::value::{ToValue, Value};
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// Returns meta for symbol
 /// Todo: currently uses form (meta 'clojure.string/join)
@@ -15,10 +16,10 @@ use std::rc::Rc;
 /// TODO: argslists for functions
 #[derive(Debug, Clone)]
 pub struct MetaFn {
-    enclosing_environment: Rc<Environment>,
+    enclosing_environment: Arc<Environment>,
 }
 impl MetaFn {
-    pub fn new(enclosing_environment: Rc<Environment>) -> MetaFn {
+    pub fn new(enclosing_environment: Arc<Environment>) -> MetaFn {
         MetaFn {
             enclosing_environment,
         }
@@ -42,9 +43,8 @@ impl IFn for MetaFn {
             _ => error_message::custom(&format!(
                 "In (meta ..), .. must be an instance of IMeta, and {} is of type {}, which is not",
                 args.get(0).unwrap(),
-                args.get(0).unwrap().type_tag())
-            )
-            //error_message::cast_error(Cast("IMeta"), TypeTag::PersistentListMap)
+                args.get(0).unwrap().type_tag()
+            )), //error_message::cast_error(Cast("IMeta"), TypeTag::PersistentListMap)
         }
     }
 }
